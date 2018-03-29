@@ -1,4 +1,4 @@
-from __future__ import print_function, unicode_literals
+from __future__ import print_function
 
 import os
 import sys
@@ -19,6 +19,12 @@ hexchat_stdout = None
 plugins = set()
 
 
+if sys.version_info[0] is 2:
+    NEWLINE = '\n'
+else:
+    NEWLINE = ord('\n')
+
+
 class Stdout:
     def __init__(self):
         self.buffer = bytearray()
@@ -26,7 +32,7 @@ class Stdout:
     def write(self, string):
         string = string.encode()
         for c in string:
-            if c == b'\n':
+            if c == NEWLINE:
                 lib.hexchat_print(lib.ph, bytes(self.buffer))
                 self.buffer = bytearray()
             else:
@@ -171,7 +177,7 @@ def create_wordeollist(words):
             accum = word
         elif word:
             last = accum
-            accum = b' '.join((word, last))
+            accum = ' '.join((word, last))
         ret.insert(0, accum)
     return ret
 

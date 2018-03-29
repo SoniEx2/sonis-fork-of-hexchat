@@ -51,8 +51,8 @@ builder.set_source('_hexchat_embedded', '''
 #include "hexchat-plugin.h"
 
 static hexchat_plugin *ph;
-int _on_plugin_init(char **, char **, char **, char *);
-int _on_plugin_deinit(void);
+CFFI_DLLEXPORT int _on_plugin_init(char **, char **, char **, char *);
+CFFI_DLLEXPORT int _on_plugin_deinit(void);
 
 int hexchat_plugin_init(hexchat_plugin *plugin_handle,
                         char **name_out, char **description_out,

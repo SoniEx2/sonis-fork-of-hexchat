@@ -386,6 +386,8 @@ servlist_connect (session *sess, ircnet *net, gboolean join)
 
 	if (!sess)
 		sess = new_ircwindow (NULL, NULL, SESS_SERVER, TRUE);
+	if (!sess)
+		return;
 
 	serv = sess->server;
 

@@ -399,6 +399,8 @@ log_handler (const gchar   *log_domain,
 	sess = find_dialog (serv_list->data, "(warnings)");
 	if (!sess)
 		sess = new_ircwindow (serv_list->data, "(warnings)", SESS_DIALOG, 0);
+	if (!sess)
+		return;
 
 	PrintTextf (sess, "%s\t%s\n", log_domain, message);
 	if (getenv ("HEXCHAT_WARNING_ABORT"))

@@ -1046,17 +1046,21 @@ void
 hexchat_command (hexchat_plugin *ph, const char *command)
 {
 	char *command_utf8;
+	session *context = ph->context;
 
-	if (!is_session (ph->context))
+	if (!ph->context)
 	{
 		DEBUG(PrintTextf(0, "%s\thexchat_command called without a valid context.\n", ph->name));
 		return;
 	}
+	session_ref(context);
 
 	/* scripts/plugins continue to send non-UTF8... *sigh* */
 	command_utf8 = text_fixup_invalid_utf8 (command, -1, NULL);
 	handle_command (ph->context, command_utf8, FALSE);
 	g_free (command_utf8);
+	if (session_unref(context) && ph->context == context)
+		ph->context = NULL;
 }
 
 void
@@ -1088,6 +1092,8 @@ hexchat_get_context (hexchat_plugin *ph)
 int
 hexchat_set_context (hexchat_plugin *ph, hexchat_context *context)
 {
+	if (ph->context == context && context != NULL)
+		return 1;
 	if (is_session (context))
 	{
 		ph->context = context;
@@ -1686,6 +1692,7 @@ hexchat_emit_print (hexchat_plugin *ph, const char *event_name, ...)
 		This can be easily expanded without breaking the API. */
 	char *argv[4] = {NULL, NULL, NULL, NULL};
 	int i = 0;
+	session *context = ph->context;
 
 	va_start (args, event_name);
 	while (1)
@@ -1698,8 +1705,11 @@ hexchat_emit_print (hexchat_plugin *ph, const char *event_name, ...)
 			break;
 	}
 
+	session_ref(context);
 	i = text_emit_by_name ((char *)event_name, ph->context, (time_t) 0,
 						   argv[0], argv[1], argv[2], argv[3]);
+	if (session_unref(context) && ph->context == context)
+		ph->context = NULL;
 	va_end (args);
 
 	return i;
@@ -1714,6 +1724,7 @@ hexchat_emit_print_attrs (hexchat_plugin *ph, hexchat_event_attrs *attrs,
 		This can be easily expanded without breaking the API. */
 	char *argv[4] = {NULL, NULL, NULL, NULL};
 	int i = 0;
+	session *context = ph->context;
 
 	va_start (args, event_name);
 	while (1)
@@ -1726,8 +1737,11 @@ hexchat_emit_print_attrs (hexchat_plugin *ph, hexchat_event_attrs *attrs,
 			break;
 	}
 
+	session_ref(context);
 	i = text_emit_by_name ((char *)event_name, ph->context, attrs->server_time_utc,
 						   argv[0], argv[1], argv[2], argv[3]);
+	if (session_unref(context) && ph->context == context)
+		ph->context = NULL;
 	va_end (args);
 
 	return i;

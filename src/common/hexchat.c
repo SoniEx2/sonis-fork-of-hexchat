@@ -191,6 +191,8 @@ lastact_getfirst(int (*filter) (session *sess))
 int
 is_session (session * sess)
 {
+	if (!sess)
+		return 0;
 	return g_slist_find (sess_list, sess) ? 1 : 0;
 }
 
@@ -511,10 +513,53 @@ session_new (server *serv, char *from, int type, int focus)
 	}
 
 	sess_list = g_slist_prepend (sess_list, sess);
+	/* new session, referenced in sess_list. need to mark it as referenced. */
+	sess->refcount = 1;
+	/* also mark it as attached */
+	sess->attached = 1;
 
 	fe_new_window (sess, focus);
 
 	return sess;
+}
+
+void
+session_ref (session *sess)
+{
+	sess->refcount++;
+	g_assert(sess->refcount != INT_MAX);
+}
+
+int
+session_unref (session *killsess)
+{
+	int attached = killsess->attached;
+
+	if (--killsess->refcount == 0)
+	{
+		server *killserv = killsess->server;
+		session *sess;
+		GSList *list;
+
+		g_assert(!attached);
+		g_free (killsess);
+
+		/* TODO I don't think these should be here */
+		if (!sess_list && !in_hexchat_exit)
+			hexchat_exit ();						/* sess_list is empty, quit! */
+
+		list = sess_list;
+		while (list)
+		{
+			sess = (session *) list->data;
+			if (sess->server == killserv)
+				return !attached;					  /* this server is still being used! */
+			list = list->next;
+		}
+
+		server_free (killserv);
+	}
+	return !attached;
 }
 
 session *
@@ -544,6 +589,8 @@ new_ircwindow (server *serv, char *name, int type, int focus)
 		break;
 	}
 
+	session_ref(sess);
+
 	irc_init (sess);
 	chanopt_load (sess);
 	scrollback_load (sess);
@@ -560,6 +607,10 @@ new_ircwindow (server *serv, char *name, int type, int focus)
 			set_topic (sess, user->hostname, user->hostname);
 	}
 	plugin_emit_dummy_print (sess, "Open Context");
+
+	if (session_unref(sess)) {
+		return NULL;
+	}
 
 	return sess;
 }
@@ -636,7 +687,12 @@ session_free (session *killsess)
 	GSList *list;
 	int oldidx;
 
+	/* plugin can call /close in Close Context event */
+	session_ref(killsess);
 	plugin_emit_dummy_print (killsess, "Close Context");
+	/* if it has, we're done here */
+	if (session_unref(killsess))
+		return;
 
 	if (current_tab == killsess)
 		current_tab = NULL;
@@ -696,21 +752,11 @@ session_free (session *killsess)
 			current_sess = sess_list->data;
 	}
 
-	g_free (killsess);
+	/* session is no longer attached (no longer in sess_list) */
+	killsess->attached = 0;
 
-	if (!sess_list && !in_hexchat_exit)
-		hexchat_exit ();						/* sess_list is empty, quit! */
-
-	list = sess_list;
-	while (list)
-	{
-		sess = (session *) list->data;
-		if (sess->server == killserv)
-			return;					  /* this server is still being used! */
-		list = list->next;
-	}
-
-	server_free (killserv);
+	/* also remove sess_list-related ref */
+	session_unref(killsess);
 }
 
 static void

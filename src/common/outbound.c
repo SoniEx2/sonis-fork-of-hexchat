@@ -2500,6 +2500,8 @@ lastlog (session *sess, char *search, gtk_xtext_search_flags flags)
 	lastlog_sess = find_dialog (sess->server, "(lastlog)");
 	if (!lastlog_sess)
 		lastlog_sess = new_ircwindow (sess->server, "(lastlog)", SESS_DIALOG, 0);
+	if (!lastlog_sess)
+		return; /* nothing we can do about it (maybe warn the user? TODO) */
 
 	lastlog_sess->lastlog_sess = sess;
 	lastlog_sess->lastlog_flags = flags;
@@ -2924,7 +2926,8 @@ cmd_newserver (struct session *sess, char *tbuf, char *word[],
 	}
 	
 	sess = new_ircwindow (NULL, NULL, SESS_SERVER, 1);
-	cmd_server (sess, tbuf, word, word_eol);
+	if (sess)
+		cmd_server (sess, tbuf, word, word_eol);
 	return TRUE;
 }
 
@@ -3104,7 +3107,7 @@ cmd_query (struct session *sess, char *tbuf, char *word[], char *word_eol[])
 
 		nick_sess = open_query (sess->server, nick, focus);
 
-		if (*msg)
+		if (nick_sess && *msg)
 		{
 			message_tags_data no_tags = MESSAGE_TAGS_DATA_INIT;
 
@@ -4580,6 +4583,7 @@ handle_say (session *sess, char *text, int check_spch)
 	if (plugin_emit_command (sess, "", word, word_eol))
 		goto xit;
 
+	/* TODO should this be changed to session_ref/session_unref? */
 	/* incase a plugin did /close */
 	if (!is_session (sess))
 		goto xit;
@@ -4775,6 +4779,7 @@ handle_command (session *sess, char *cmd, int check_spch)
 		goto xit;
 	}
 
+	/* TODO should this be changed to session_ref/session_unref? */
 	/* incase a plugin did /close */
 	if (!is_session (sess))
 	{

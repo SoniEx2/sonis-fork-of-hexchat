@@ -323,12 +323,18 @@ key_handle_key_press (GtkWidget *wid, GdkEventKey *evt, session *sess)
 		return FALSE;
 	current_sess = sess;
 
+	/* the plugin may close this tab. */
+	session_ref(sess);
+
 	if (plugin_emit_keypress (sess, evt->state, evt->keyval, gdk_keyval_to_unicode (evt->keyval)))
 		return 1;
 
 	/* maybe the plugin closed this tab? */
-	if (!is_session (sess))
+	if (!sess->attached)
+	{
+		session_unref(sess);
 		return 1;
+	}
 
 	list = keybind_list;
 	while (list)

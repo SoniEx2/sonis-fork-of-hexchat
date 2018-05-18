@@ -420,10 +420,14 @@ typedef struct session
 	int end_of_names:1;
 	int doing_who:1;		/* /who sent on this channel */
 	int done_away_check:1;	/* done checking for away status changes */
+	int attached:1; /* if the session is no longer in sess_list, this is 0 */
 	tab_state_flags tab_state;
 	tab_state_flags last_tab_state; /* before event is handled */
 	gtk_xtext_search_flags lastlog_flags;
 	void (*scrollback_replay_marklast) (struct session *sess);
+
+	/* sessions are refcounted now. deal with it. */
+	int refcount;
 } session;
 
 /* SASL Mechanisms */

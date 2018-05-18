@@ -138,7 +138,8 @@ inbound_open_dialog (server *serv, char *from,
 
 	sess = new_ircwindow (serv, from, SESS_DIALOG, 0);
 	/* for playing sounds */
-	EMIT_SIGNAL_TIMESTAMP (XP_TE_OPENDIALOG, sess, NULL, NULL, NULL, NULL, 0,
+	if (sess)
+		EMIT_SIGNAL_TIMESTAMP (XP_TE_OPENDIALOG, sess, NULL, NULL, NULL, NULL, 0,
 								  tags_data->timestamp);
 
 	return sess;
@@ -184,7 +185,7 @@ inbound_privmsg (server *serv, char *from, char *ip, char *text, int id,
 			else
 				sess = serv->server_session;
 			if (!sess)
-				return; /* ?? */
+				return; /* guess a plugin closed the session before it even got here */
 		}
 
 		if (ip && ip[0])
@@ -588,8 +589,18 @@ inbound_ujoin (server *serv, char *chan, char *nick, char *ip,
 			sess = find_unused_session (serv);
 			found_unused = sess != NULL;
 			if (!sess)
+			{
 				/* last resort, open a new tab/window */
 				sess = new_ircwindow (serv, chan, SESS_CHANNEL, 1);
+				/* well, that didn't work either. */
+				if (!sess)
+				{
+					/* FIXME */
+					/* I have no idea if closing the session in a plugin sends a part/quit */
+					/* but either way let's not crash */
+					return;
+				}
+			}
 		}
 	}
 
@@ -982,11 +993,14 @@ inbound_notice (server *serv, char *to, char *nick, char *msg, char *ip, int id,
 					sess = new_ircwindow (serv, "(notices)", SESS_NOTICES, 0);
 				else
 					sess = new_ircwindow (serv, "(snotices)", SESS_SNOTICES, 0);
-				fe_set_channel (sess);
-				fe_set_title (sess);
-				fe_set_nonchannel (sess, FALSE);
-				userlist_clear (sess);
-				log_open_or_close (sess);
+				if (sess)
+				{
+					fe_set_channel (sess);
+					fe_set_title (sess);
+					fe_set_nonchannel (sess, FALSE);
+					userlist_clear (sess);
+					log_open_or_close (sess);
+				}
 			}
 			/* Avoid redundancy with some Undernet notices */
 			if (!strncmp (msg, "*** Notice -- ", 14))
@@ -1003,7 +1017,12 @@ inbound_notice (server *serv, char *to, char *nick, char *msg, char *ip, int id,
 			else
 				sess = serv->front_session;
 		}
+
+		/* if we still don't have a session, bail. (can this even happen? FIXME) */
+		if (!sess)
+			return;
 	}
+
 
 	if (msg[0] == '\001')
 	{

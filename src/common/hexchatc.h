@@ -59,4 +59,15 @@ void lag_check (void);
 void hexchat_exit (void);
 void hexchat_exec (const char *cmd);
 
+/*
+ * Marks a session as being active. Increments an internal refcount.
+ */
+void session_ref(session *sess);
+/*
+ * Marks a session as being no longer active. Decrements an internal refcount.
+ *
+ * Frees the session when the refcount reaches 0. Returns 1 if the session has been freeed.
+ */
+int session_unref(session *sess);
+
 #endif

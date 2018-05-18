@@ -796,17 +796,21 @@ static int ul_tag = 0;
 static gboolean
 mg_populate_userlist (session *sess)
 {
-	if (!sess)
-		sess = current_tab;
+	session *use_sess = sess;
+	if (!use_sess)
+		use_sess = current_tab;
 
-	if (is_session (sess))
+	/* the caller for this assumes the session is valid, so if we're gonna segfault anyway, */
+	/* might aswell avoid a linked list search */
+	/* TODO it might be possible to just turn this into use_sess != NULL */
+	if (sess || is_session (use_sess))
 	{
-		if (sess->type == SESS_DIALOG)
-			mg_set_access_icon (sess->gui, NULL, sess->server->is_away);
+		if (use_sess->type == SESS_DIALOG)
+			mg_set_access_icon (use_sess->gui, NULL, use_sess->server->is_away);
 		else
-			mg_set_access_icon (sess->gui, get_user_icon (sess->server, sess->me), sess->server->is_away);
-		userlist_show (sess);
-		userlist_set_value (sess->gui->user_tree, sess->res->old_ul_value);
+			mg_set_access_icon (use_sess->gui, get_user_icon (use_sess->server, use_sess->me), use_sess->server->is_away);
+		userlist_show (use_sess);
+		userlist_set_value (use_sess->gui->user_tree, use_sess->res->old_ul_value);
 	}
 
 	ul_tag = 0;

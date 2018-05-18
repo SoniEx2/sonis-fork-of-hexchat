@@ -2045,15 +2045,16 @@ text_emit (int index, session *sess, char *a, char *b, char *c, char *d,
 	if (plugin_emit_print (sess, word, timestamp))
 		return;
 
+	/* If a plugin's callback executes "/close", 'sess' may be invalid */
+	/* TODO should this be changed to session_ref/session_unref? */
+	if (!is_session (sess))
+		return;
+
 	/* The plugin may have changed the state which we should respect.
 	 * If the state is NEW_DATA we don't actually know if that was on
 	 * purpose though as print() sets it, so for now we ignore that. FIXME */
 	if (sess->tab_state == plugin_state || sess->tab_state == TAB_STATE_NEW_DATA)
 		sess->tab_state = current_state;
-
-	/* If a plugin's callback executes "/close", 'sess' may be invalid */
-	if (!is_session (sess))
-		return;
 
 	switch (index)
 	{

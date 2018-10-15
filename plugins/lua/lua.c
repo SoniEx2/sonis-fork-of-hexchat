@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <limits.h>
 
 #include <lua.h>
 #include <lauxlib.h>
@@ -51,6 +52,7 @@ static char command_help[] =
 	"            console";
 
 static char registry_field[] = "plugin";
+static char registry_field_context_intern[] = "context_intern";
 
 static hexchat_plugin *ph;
 
@@ -85,6 +87,38 @@ script_info;
 #define STATUS_ACTIVE 1
 #define STATUS_DEFERRED_UNLOAD 2
 #define STATUS_DEFERRED_RELOAD 4
+
+/* context interning funtions */
+static int get_interned_context(lua_State *L, hexchat_context *context)
+{
+	if (!lua_checkstack(L, 4))
+	{
+		return 0;
+	}
+	lua_getfield(L, LUA_REGISTRYINDEX, registry_field_context_intern);
+	if (!lua_istable(L, -1))
+	{
+		lua_pop(L, 1);
+		return 0;
+	}
+	/* find the context */
+	lua_pushlightuserdata(L, context);
+	lua_rawget(L, -2);
+	if(lua_type(L, -1) == LUA_TNIL)
+	{
+		lua_pop(L, 1);
+		/* couldn't find the context, create it */
+		hexchat_context **u = lua_newuserdata(L, sizeof(hexchat_context *));
+		*u = context;
+		luaL_newmetatable(L, "context");
+		lua_setmetatable(L, -2);
+		lua_pushlightuserdata(L, context);
+		lua_pushvalue(L, -2);
+		lua_rawset(L, -4);
+	}
+	lua_remove(L, -2);
+	return 1;
+}
 
 static void check_deferred(script_info *info);
 
@@ -662,27 +696,23 @@ static int api_hexchat_find_context(lua_State *L)
 	hexchat_context *context = hexchat_find_context(ph, server, channel);
 	if(context)
 	{
-		hexchat_context **u = lua_newuserdata(L, sizeof(hexchat_context *));
-		*u = context;
-		luaL_newmetatable(L, "context");
-		lua_setmetatable(L, -2);
-		return 1;
+		if (get_interned_context(L, context))
+		{
+			return 1;
+		}
 	}
-	else
-	{
-		lua_pushnil(L);
-		return 1;
-	}
+	lua_pushnil(L);
+	return 1;
 }
 
 static int api_hexchat_get_context(lua_State *L)
 {
 	hexchat_context *context = hexchat_get_context(ph);
-	hexchat_context **u = lua_newuserdata(L, sizeof(hexchat_context *));
-	*u = context;
-	luaL_newmetatable(L, "context");
-	lua_setmetatable(L, -2);
-	return 1;
+	if (get_interned_context(L, context))
+	{
+		return 1;
+	}
+	return luaL_error(L, "Unexpected error getting context");
 }
 
 static int api_hexchat_set_context(lua_State *L)
@@ -695,15 +725,18 @@ static int api_hexchat_set_context(lua_State *L)
 
 static int wrap_context_closure(lua_State *L)
 {
-	hexchat_context *old, *context = *(hexchat_context **)luaL_checkudata(L, 1, "context");
+	hexchat_context **old, *context = *(hexchat_context **)luaL_checkudata(L, 1, "context");
 	lua_pushvalue(L, lua_upvalueindex(1));
 	lua_replace(L, 1);
-	old = hexchat_get_context(ph);
+	api_hexchat_get_context(L);
+	old = lua_touserdata(L, -1);
+	/* need to keep it on the stack so it doesn't get free'd */
+	lua_insert(L, 1);
 	if(!hexchat_set_context(ph, context))
 		return luaL_error(L, "could not switch into context");
-	lua_call(L, lua_gettop(L) - 1, LUA_MULTRET);
-	hexchat_set_context(ph, old);
-	return lua_gettop(L);
+	lua_call(L, lua_gettop(L) - 2, LUA_MULTRET);
+	hexchat_set_context(ph, *old);
+	return lua_gettop(L) - 1;
 }
 
 static inline void wrap_context(lua_State *L, char const *field, lua_CFunction func)
@@ -717,7 +750,7 @@ static int api_hexchat_context_meta_eq(lua_State *L)
 {
 	hexchat_context *this = *(hexchat_context **)luaL_checkudata(L, 1, "context");
 	hexchat_context *that = *(hexchat_context **)luaL_checkudata(L, 2, "context");
-	lua_pushboolean(L, this == that);
+	lua_pushboolean(L, this == that && this != NULL);
 	return 1;
 }
 
@@ -812,12 +845,12 @@ static inline int list_marshal(lua_State *L, const char *key, hexchat_list *list
 	int number;
 	if(str)
 	{
-		if(!strcmp(key, "context"))
+		if(strcmp(key, "context") == 0)
 		{
-			hexchat_context **u = lua_newuserdata(L, sizeof(hexchat_context *));
-			*u = (hexchat_context *)str;
-			luaL_newmetatable(L, "context");
-			lua_setmetatable(L, -2);
+			if (!get_interned_context(L, (hexchat_context *)str))
+			{
+				lua_pushnil(L);
+			}
 			return 1;
 		}
 		lua_pushstring(L, str);
@@ -1262,6 +1295,13 @@ static void prepare_state(lua_State *L, script_info *info)
 	lua_pop(L, 1);
 	lua_pushlightuserdata(L, info);
 	lua_setfield(L, LUA_REGISTRYINDEX, registry_field);
+	lua_newtable(L);
+	/* do we need __mode=v? */
+	lua_newtable(L);
+	lua_pushstring(L, "v");
+	lua_setfield(L, -2, "__mode");
+	lua_setmetatable(L, -2);
+	lua_setfield(L, LUA_REGISTRYINDEX, registry_field_context_intern);
 	luaopen_hexchat(L);
 	lua_setglobal(L, "hexchat");
 	lua_getglobal(L, "hexchat");
@@ -1698,6 +1738,46 @@ static int command_lua(char *word[], char *word_eol[], void *userdata)
 /* Reinitialization safegaurd */
 static int initialized = 0;
 
+static int ctx_close_cb(char *word[], void *user_data)
+{
+	int i;
+	hexchat_context *context = hexchat_get_context(ph);
+	for(i = 0; i < scripts->len; i++)
+	{
+		script_info *info = (script_info*)scripts->pdata[i];
+		lua_State *L = info->state;
+		if (!lua_checkstack(L, 4))
+		{
+			continue;
+		}
+		lua_getfield(L, LUA_REGISTRYINDEX, registry_field_context_intern);
+		if (!lua_istable(L, -1))
+		{
+			lua_pop(L, 1);
+			continue;
+		}
+		/* find the context */
+		lua_pushlightuserdata(L, context);
+		lua_rawget(L, -2);
+		if(lua_type(L, -1) != LUA_TNIL)
+		{
+			/* found the context, NULLify and detach it */
+			hexchat_context **ud = lua_touserdata(L, -1);
+			if (ud) {
+				*ud = NULL;
+			}
+			lua_pop(L, 1);
+			lua_pushlightuserdata(L, context);
+			lua_pushnil(L);
+			lua_rawset(L, -4);
+		} else {
+			lua_pop(L, 1);
+		}
+		lua_pop(L, 1);
+	}
+	return HEXCHAT_EAT_NONE;
+}
+
 G_MODULE_EXPORT int hexchat_plugin_init(hexchat_plugin *plugin_handle, char **name, char **description, char **version, char *arg)
 {
 	if(initialized != 0)
@@ -1724,6 +1804,8 @@ G_MODULE_EXPORT int hexchat_plugin_init(hexchat_plugin *plugin_handle, char **na
 	hexchat_hook_command(ph, "UNLOAD", HEXCHAT_PRI_NORM, command_unload, NULL, NULL);
 	hexchat_hook_command(ph, "RELOAD", HEXCHAT_PRI_NORM, command_reload, NULL, NULL);
 	hexchat_hook_command(ph, "lua", HEXCHAT_PRI_NORM, command_lua, command_help, NULL);
+	/* use INT_MIN (< -32767) so as to avoid breaking "Close Context" with PRI_LOWEST (-128) */
+	hexchat_hook_print(ph, "Close Context", INT_MIN, ctx_close_cb, NULL);
 
 	hexchat_printf(ph, "%s version %s loaded.\n", plugin_name, plugin_version);
 

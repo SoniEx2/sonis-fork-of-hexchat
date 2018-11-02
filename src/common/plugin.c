@@ -541,10 +541,13 @@ static int
 plugin_hook_run (session *sess, char *name, char *word[], char *word_eol[],
 				 hexchat_event_attrs *attrs, int type)
 {
+	/* fix segfault https://github.com/hexchat/hexchat/issues/2265 */
+	static int depth = 0;
 	GSList *list, *next;
 	hexchat_hook *hook;
 	int ret, eat = 0;
 
+	depth++;
 	list = hook_list;
 	while (1)
 	{
@@ -590,18 +593,22 @@ plugin_hook_run (session *sess, char *name, char *word[], char *word_eol[],
 	}
 
 xit:
-	/* really remove deleted hooks now */
-	list = hook_list;
-	while (list)
+	depth--;
+	if (!depth)
 	{
-		hook = list->data;
-		next = list->next;
-		if (!hook || hook->type == HOOK_DELETED)
+		/* really remove deleted hooks now */
+		list = hook_list;
+		while (list)
 		{
-			hook_list = g_slist_remove (hook_list, hook);
-			g_free (hook);
+			hook = list->data;
+			next = list->next;
+			if (!hook || hook->type == HOOK_DELETED)
+			{
+				hook_list = g_slist_remove (hook_list, hook);
+				g_free (hook);
+			}
+			list = next;
 		}
-		list = next;
 	}
 
 	return eat;

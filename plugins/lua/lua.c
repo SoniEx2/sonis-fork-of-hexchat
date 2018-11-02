@@ -404,6 +404,12 @@ static int api_hexchat_hook_print(lua_State *L)
 	lua_pushvalue(L, 2);
 	ref = luaL_ref(L, LUA_REGISTRYINDEX);
 	pri = luaL_optinteger(L, 3, HEXCHAT_PRI_NORM);
+	/* we rely on Close Context pri=INT_MIN for internal stuff. this avoids issues. */
+	if (pri == INT_MIN && strcmp(event, "Close Context"))
+	{
+		hexchat_print(ph, "Warning: Attempted to hook Close Context with priority INT_MIN. Adjusting to INT_MIN+1.");
+		pri = INT_MIN + 1;
+	}
 	info = g_new(hook_info, 1);
 	info->state = L;
 	info->ref = ref;

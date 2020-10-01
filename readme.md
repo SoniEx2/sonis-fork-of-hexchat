@@ -1,19 +1,20 @@
-# HexChat [![Build Status](http://img.shields.io/travis/hexchat/hexchat/master.svg?style=flat)](https://travis-ci.org/hexchat/hexchat) [![Build Status](https://img.shields.io/appveyor/ci/TingPing/hexchat/master.svg?style=flat)](https://ci.appveyor.com/project/TingPing/hexchat)
+# TorxChat
 
-HexChat is an IRC client for Windows and UNIX-like operating systems.  
+TorxChat is a fork of HexChat, an IRC client for Windows and UNIX-like operating systems.  
 See [IRCHelp.org](http://irchelp.org) for information about IRC in general.  
-For more information on HexChat please read our [documentation](https://hexchat.readthedocs.org/en/latest/index.html):
+<!--For more information on HexChat please read our [documentation](https://hexchat.readthedocs.org/en/latest/index.html):
 - [Downloads](http://hexchat.github.io/downloads.html)
 - [FAQ](https://hexchat.readthedocs.org/en/latest/faq.html)
 - [Changelog](https://hexchat.readthedocs.org/en/latest/changelog.html)
 - [Python API](https://hexchat.readthedocs.org/en/latest/script_python.html)
-- [Perl API](https://hexchat.readthedocs.org/en/latest/script_perl.html)
+- [Perl API](https://hexchat.readthedocs.org/en/latest/script_perl.html)-->
 
 ---
 
 <sub>
 X-Chat ("xchat") Copyright (c) 1998-2010 By Peter Zelezny.  
-HexChat ("hexchat") Copyright (c) 2009-2014 By Berke Viktor.
+HexChat ("hexchat") Copyright (c) 2009-2014 By Berke Viktor.  
+TorxChat ("torxchat") Copyright (c) 2018-2020 By Soni L..
 </sub>
 
 <sub>

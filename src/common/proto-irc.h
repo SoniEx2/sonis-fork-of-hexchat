@@ -25,8 +25,11 @@
 
 #define MESSAGE_TAGS_DATA_INIT			\
 	{									\
+		NULL, /* account name */		\
 		(time_t)0, /* timestamp */		\
 	}
+
+#define STRIP_COLON(word, word_eol, idx) (word)[(idx)][0] == ':' ? (word_eol)[(idx)]+1 : (word)[(idx)]
 
 /* Message tag information that might be passed along with a server message
  *
@@ -34,8 +37,11 @@
  */
 typedef struct 
 {
+	char *account;
 	time_t timestamp;
 } message_tags_data;
+
+void message_tags_data_free (message_tags_data *tags_data);
 
 void proto_fill_her_up (server *serv);
 

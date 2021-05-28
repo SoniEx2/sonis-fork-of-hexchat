@@ -596,6 +596,9 @@ ssl_do_connect (server * serv)
 			EMIT_SIGNAL (XP_TE_SSLMESSAGE, serv->server_session, buf, NULL, NULL,
 							 NULL, 0);
 		} else
+#ifndef OPENSSL_NO_SRP
+		if (!serv->use_pake)
+#endif
 		{
 			g_snprintf (buf, sizeof (buf), "No Certificate");
 			goto conn_fail;
@@ -618,7 +621,8 @@ ssl_do_connect (server * serv)
 			{
 				X509 *cert = SSL_get_peer_certificate (serv->ssl);
 				int hostname_err;
-				if ((hostname_err = _SSL_check_hostname(cert, serv->hostname)) != 0)
+				/* cert may be NULL due to pake */
+				if (cert && (hostname_err = _SSL_check_hostname(cert, serv->hostname)) != 0)
 				{
 					g_snprintf (buf, sizeof (buf), "* Verify E: Failed to validate hostname? (%d)%s",
 							 hostname_err, serv->accept_invalid_cert ? " -- Ignored" : "");
@@ -1601,6 +1605,38 @@ server_connect (server *serv, char *hostname, int port, int no_login)
 			}
 		}
 		g_free (cert_file);
+
+#ifndef OPENSSL_NO_SRP
+		/* also setup PAKE/SRP */
+		if (serv->password[0] && (serv->loginmethod == LOGIN_SASLPAKE || serv->loginmethod == LOGIN_PAKE)) {
+			char *username;
+			char *password;
+			ircnet *net = (ircnet*)serv->network;
+
+			if (net->user && !(net->flags & FLAG_USE_GLOBAL))
+				username = net->user;
+			else
+				username = prefs.hex_irc_user_name;
+			password = serv->password;
+
+			if (strlen(username) < 255) {
+				if (SSL_CTX_set_srp_username(serv->ctx, username) &&
+						SSL_CTX_set_srp_password(serv->ctx, password)) {
+					serv->use_pake = TRUE;
+				} else {
+					goto pakefail;
+				}
+			} else {
+				goto pakefail;
+			}
+		} else {
+pakefail:
+			/* clear PAKE just in case */
+			SSL_CTX_set_srp_username(serv->ctx, NULL);
+			SSL_CTX_set_srp_password(serv->ctx, NULL);
+			serv->use_pake = FALSE;
+		}
+#endif
 	}
 #endif
 

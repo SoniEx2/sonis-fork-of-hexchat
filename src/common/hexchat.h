@@ -584,6 +584,9 @@ typedef struct server
 #ifdef USE_OPENSSL
 	unsigned int use_ssl:1;				  /* is server SSL capable? */
 	unsigned int accept_invalid_cert:1;/* ignore result of server's cert. verify */
+#ifndef OPENSSL_NO_SRP
+	unsigned int use_pake:1;/* ignore lack of cert */
+#endif
 #endif
 } server;
 

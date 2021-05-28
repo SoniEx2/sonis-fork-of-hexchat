@@ -79,6 +79,8 @@ extern GSList *network_list;
 #define LOGIN_CHALLENGEAUTH		8
 #define LOGIN_CUSTOM			9
 #define LOGIN_SASLEXTERNAL		10
+#define LOGIN_SASLPAKE		11
+#define LOGIN_PAKE		12
 
 #define CHALLENGEAUTH_ALGO		"HMAC-SHA-256"
 #define CHALLENGEAUTH_NICK		"Q@CServe.quakenet.org"

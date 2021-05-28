@@ -1679,7 +1679,11 @@ inbound_toggle_caps (server *serv, const char *extensions_str, gboolean enable)
 			if (enable)
 			{
 #ifdef USE_OPENSSL
-				if (serv->loginmethod == LOGIN_SASLEXTERNAL)
+				if (serv->loginmethod == LOGIN_SASLEXTERNAL
+#ifndef OPENSSL_NO_SRP
+						|| serv->loginmethod == LOGIN_SASLPAKE
+#endif
+				   )
 					serv->sasl_mech = MECH_EXTERNAL;
 #endif
 				/* Mechanism either defaulted to PLAIN or server gave us list */
@@ -1748,7 +1752,11 @@ get_supported_mech (server *serv, const char *list)
 	for (i = 0; mechs[i]; ++i)
 	{
 #ifdef USE_OPENSSL
-		if (serv->loginmethod == LOGIN_SASLEXTERNAL)
+		if (serv->loginmethod == LOGIN_SASLEXTERNAL
+#ifndef OPENSSL_NO_SRP
+				|| serv->loginmethod == LOGIN_SASLPAKE
+#endif
+		   )
 		{
 			if (!strcmp (mechs[i], "EXTERNAL"))
 			{
@@ -1811,7 +1819,11 @@ inbound_cap_ls (server *serv, char *nick, char *extensions_str,
 
 		/* if the SASL password is set AND auth mode is set to SASL, request SASL auth */
 		if (!g_strcmp0 (extension, "sasl") &&
-			((serv->loginmethod == LOGIN_SASL && strlen (serv->password) != 0)
+			(((serv->loginmethod == LOGIN_SASL
+#ifndef OPENSSL_NO_SRP
+			   || serv->loginmethod == LOGIN_SASLPAKE
+#endif
+			   ) && strlen (serv->password) != 0)
 				|| serv->loginmethod == LOGIN_SASLEXTERNAL))
 		{
 			if (value)

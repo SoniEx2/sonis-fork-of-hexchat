@@ -128,6 +128,10 @@ static int login_types_conf[] =
 	LOGIN_NICKSERV,
 #ifdef USE_OPENSSL
 	LOGIN_CHALLENGEAUTH,
+#ifndef OPENSSL_NO_SRP
+	LOGIN_PAKE,
+	LOGIN_SASLPAKE,
+#endif
 #endif
 	LOGIN_CUSTOM
 #if 0
@@ -149,6 +153,10 @@ static const char *login_types[]=
 	"NickServ (/NICKSERV + password)",
 #ifdef USE_OPENSSL
 	"Challenge Auth (username + password)",
+#ifndef OPENSSL_NO_SRP
+	"PAKE (username + password)",
+	"SASL EXTERNAL+PAKE (username + password)",
+#endif
 #endif
 	"Custom... (connect commands)",
 #if 0

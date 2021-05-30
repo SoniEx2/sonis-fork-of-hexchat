@@ -604,6 +604,14 @@ ssl_do_connect (server * serv)
 			goto conn_fail;
 		}
 
+#ifndef OPENSSL_NO_SRP
+		if (serv->use_pake && !SSL_get_srp_g(serv->ssl))
+		{
+			g_snprintf (buf, sizeof (buf), "No SRP");
+			goto conn_fail;
+		}
+#endif
+
 		chiper_info = _SSL_get_cipher_info (serv->ssl);	/* static buffer */
 		g_snprintf (buf, sizeof (buf), "* Cipher info:");
 		EMIT_SIGNAL (XP_TE_SSLMESSAGE, serv->server_session, buf, NULL, NULL, NULL,

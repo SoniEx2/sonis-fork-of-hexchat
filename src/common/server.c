@@ -1582,23 +1582,33 @@ server_connect (server *serv, char *hostname, int port, int no_login)
 		char *cert_file;
 		serv->have_cert = FALSE;
 
-		/* first try network specific cert/key */
-		cert_file = g_strdup_printf ("%s" G_DIR_SEPARATOR_S "certs" G_DIR_SEPARATOR_S "%s.pem",
-					 get_xdir (), server_get_network (serv, TRUE));
-		if (SSL_CTX_use_certificate_file (serv->ctx, cert_file, SSL_FILETYPE_PEM) == 1)
+		/* try user-supplied cert (only for SASL EXTERNAL) */
+		if (serv->password[0] && serv->loginmethod == LOGIN_SASLEXTERNAL &&
+			SSL_CTX_use_certificate_file (serv->ctx,
+			cert_file = g_strdup_printf ("%s", serv->password),
+			SSL_FILETYPE_PEM) == 1)
 		{
 			if (SSL_CTX_use_PrivateKey_file (serv->ctx, cert_file, SSL_FILETYPE_PEM) == 1)
 				serv->have_cert = TRUE;
 		}
 		else
+		/* try network specific cert/key */
+		if (SSL_CTX_use_certificate_file (serv->ctx,
+			cert_file = g_strdup_printf ("%s" G_DIR_SEPARATOR_S "certs" G_DIR_SEPARATOR_S "%s.pem",
+			 get_xdir (), server_get_network (serv, TRUE)),
+			SSL_FILETYPE_PEM) == 1)
 		{
-			/* if that doesn't exist, try <config>/certs/client.pem */
-			cert_file = g_build_filename (get_xdir (), "certs", "client.pem", NULL);
-			if (SSL_CTX_use_certificate_file (serv->ctx, cert_file, SSL_FILETYPE_PEM) == 1)
-			{
-				if (SSL_CTX_use_PrivateKey_file (serv->ctx, cert_file, SSL_FILETYPE_PEM) == 1)
-					serv->have_cert = TRUE;
-			}
+			if (SSL_CTX_use_PrivateKey_file (serv->ctx, cert_file, SSL_FILETYPE_PEM) == 1)
+				serv->have_cert = TRUE;
+		}
+		else
+		/* if that doesn't exist, try <config>/certs/client.pem */
+		if (SSL_CTX_use_certificate_file (serv->ctx,
+			cert_file = g_build_filename (get_xdir (), "certs", "client.pem", NULL),
+			SSL_FILETYPE_PEM) == 1)
+		{
+			if (SSL_CTX_use_PrivateKey_file (serv->ctx, cert_file, SSL_FILETYPE_PEM) == 1)
+				serv->have_cert = TRUE;
 		}
 		g_free (cert_file);
 	}

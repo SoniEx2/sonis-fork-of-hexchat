@@ -70,6 +70,7 @@ static GtkWidget *edit_entry_nick;
 static GtkWidget *edit_entry_nick2;
 static GtkWidget *edit_entry_user;
 static GtkWidget *edit_entry_real;
+static GtkWidget *edit_entry_pass_label;
 static GtkWidget *edit_entry_pass;
 static GtkWidget *edit_label_nick;
 static GtkWidget *edit_label_nick2;
@@ -1539,9 +1540,16 @@ servlist_logintypecombo_cb (GtkComboBox *cb, gpointer *userdata)
 	
 	/* EXTERNAL uses a cert, not a pass */
 	if (login_types_conf[index] == LOGIN_SASLEXTERNAL)
-		gtk_widget_set_sensitive (edit_entry_pass, FALSE);
-	else
-		gtk_widget_set_sensitive (edit_entry_pass, TRUE);
+	{
+		gtk_entry_set_visibility (GTK_ENTRY (edit_entry_pass), TRUE);
+		gtk_label_set_text_with_mnemonic (GTK_LABEL (edit_entry_pass_label), _("Certificate:"));
+		gtk_widget_set_tooltip_text (edit_entry_pass, _("Certificate used for login. If in doubt, leave blank."));
+	} else
+	{
+		gtk_entry_set_visibility (GTK_ENTRY (edit_entry_pass), FALSE);
+		gtk_label_set_text_with_mnemonic (GTK_LABEL (edit_entry_pass_label), _("Password:"));
+		gtk_widget_set_tooltip_text (edit_entry_pass, _("Password used for login. If in doubt, leave blank."));
+	}
 }
 
 static void
@@ -1888,10 +1896,14 @@ servlist_open_edit (GtkWidget *parent, ircnet *net)
 	combobox_logintypes = servlist_create_logintypecombo (notebook);
 	gtk_table_attach (GTK_TABLE (table3), combobox_logintypes, 1, 2, 10, 11, (GtkAttachOptions) (GTK_FILL), (GtkAttachOptions) (GTK_FILL), 4, 2);
 
-	edit_entry_pass = servlist_create_entry (table3, _("Password:"), 11, net->pass, 0, _("Password used for login. If in doubt, leave blank."));
+	edit_entry_pass = servlist_create_entry (table3, _("Password:"), 11, net->pass, &edit_entry_pass_label, _("Password used for login. If in doubt, leave blank."));
 	gtk_entry_set_visibility (GTK_ENTRY (edit_entry_pass), FALSE);
 	if (selected_net && selected_net->logintype == LOGIN_SASLEXTERNAL)
-		gtk_widget_set_sensitive (edit_entry_pass, FALSE);
+	{
+		gtk_entry_set_visibility (GTK_ENTRY (edit_entry_pass), TRUE);
+		gtk_label_set_text_with_mnemonic (GTK_LABEL (edit_entry_pass_label), _("Certificate:"));
+		gtk_widget_set_tooltip_text (edit_entry_pass, _("Certificate used for login. If in doubt, leave blank."));
+	}
 
 	label34 = gtk_label_new (_("Character set:"));
 	gtk_table_attach (GTK_TABLE (table3), label34, 0, 1, 12, 13, (GtkAttachOptions) (GTK_FILL), (GtkAttachOptions) (0), SERVLIST_X_PADDING, SERVLIST_Y_PADDING);

@@ -2,7 +2,7 @@ name: Windows Build
 on: [push, pull_request]
 
 jobs:
-  build:
+  windows_build:
     runs-on: windows-2019
     strategy:
       matrix:
@@ -17,8 +17,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-        with:
-          fetch-depth: 1
 
       - name: Install Dependencies
         run: |
@@ -30,7 +28,7 @@ jobs:
           Invoke-WebRequest https://dl.hexchat.net/misc/idpsetup-1.5.1.exe -OutFile deps\idpsetup.exe
           & deps\idpsetup.exe /VERYSILENT
 
-          Invoke-WebRequest https://dl.hexchat.net/gtk/gtk-${{ matrix.platform }}-2018-08-29.7z -OutFile deps\gtk-${{ matrix.arch }}.7z
+          Invoke-WebRequest https://dl.hexchat.net/gtk/gtk-${{ matrix.platform }}-2018-08-29-openssl1.1.7z -OutFile deps\gtk-${{ matrix.arch }}.7z
           & 7z.exe x deps\gtk-${{ matrix.arch }}.7z -oC:\gtk-build\gtk
 
           Invoke-WebRequest https://dl.hexchat.net/gtk-win32/gendef-20111031.7z -OutFile deps\gendef.7z
@@ -63,12 +61,12 @@ jobs:
           move ..\hexchat-build .\
         shell: cmd
 
-      - uses: actions/upload-artifact@v2-preview
+      - uses: actions/upload-artifact@v2
         with:
-          name: Installer
+          name: Installer ${{ matrix.arch }}
           path: HexChat*.exe
 
-      - uses: actions/upload-artifact@v2-preview
+      - uses: actions/upload-artifact@v2
         with:
-          name: Build
+          name: Build Files ${{ matrix.arch  }}
           path: hexchat-build

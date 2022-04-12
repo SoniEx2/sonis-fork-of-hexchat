@@ -664,13 +664,13 @@ fe_print_text (struct session *sess, char *text, time_t stamp,
 		return;
 
 	if (sess == current_tab)
-		fe_set_tab_color (sess, 0);
+		fe_set_tab_color (sess, FE_COLOR_NONE);
 	else if (sess->tab_state & TAB_STATE_NEW_HILIGHT)
-		fe_set_tab_color (sess, 3);
+		fe_set_tab_color (sess, FE_COLOR_NEW_HILIGHT);
 	else if (sess->tab_state & TAB_STATE_NEW_MSG)
-		fe_set_tab_color (sess, 2);
+		fe_set_tab_color (sess, FE_COLOR_NEW_MSG);
 	else
-		fe_set_tab_color (sess, 1);
+		fe_set_tab_color (sess, FE_COLOR_NEW_DATA);
 }
 
 void
@@ -1054,6 +1054,46 @@ osx_show_uri (const char *url)
 
 #endif
 
+static inline char *
+escape_uri (const char *uri)
+{
+	return g_uri_escape_string(uri, G_URI_RESERVED_CHARS_GENERIC_DELIMITERS G_URI_RESERVED_CHARS_SUBCOMPONENT_DELIMITERS, FALSE);
+}
+
+static inline gboolean
+uri_contains_forbidden_characters (const char *uri)
+{
+	while (*uri)
+	{
+		/* This is not an exhaustive list, the full URI has segments that allow characters like "[]:" for example. */
+		if (strchr ("`<> ${}\"+", *uri) != NULL || (*uri & 0x80) /* non-ascii */)
+			return TRUE;
+		uri++;
+	}
+
+	return FALSE;
+}
+
+static char *
+maybe_escape_uri (const char *uri)
+{
+	/* The only way to know if a string has already been escaped or not
+	 * is by fulling parsing each segement but we can try some more simple heuristics. */
+
+	/* If we find characters that should clearly be escaped. */
+	if (uri_contains_forbidden_characters (uri))
+		return escape_uri (uri);
+
+	/* If it fails to be unescaped then it was not escaped. */
+	char *unescaped = g_uri_unescape_string (uri, NULL);
+	if (!unescaped)
+		return escape_uri (uri);
+	g_free (unescaped);
+
+	/* At this point it is probably safe to pass through as-is. */
+	return g_strdup (uri);
+}
+
 static void
 fe_open_url_inner (const char *url)
 {
@@ -1071,7 +1111,10 @@ fe_open_url_inner (const char *url)
 #elif defined(__APPLE__)
     osx_show_uri (url);
 #else
-	gtk_show_uri (NULL, url, GDK_CURRENT_TIME, NULL);
+	char *escaped_url = maybe_escape_uri (url);
+	g_debug ("Opening URL \"%s\" (%s)", escaped_url, url);
+	gtk_show_uri (NULL, escaped_url, GDK_CURRENT_TIME, NULL);
+	g_free (escaped_url);
 #endif
 }
 

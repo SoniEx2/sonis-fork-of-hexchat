@@ -43,11 +43,7 @@ hexchat_gtk_cflags = []
 
 hexchat_gtk_ldflags = []
 
-if get_option('with-libnotify')
-  hexchat_gtk_sources += 'notifications/notification-libnotify.c'
-  hexchat_gtk_deps += dependency('libnotify')
-elif false # TODO HAVE_GTK_MAC
-elif host_machine.system() == 'windows'
+if host_machine.system() == 'windows'
   hexchat_gtk_sources += 'notifications/notification-windows.c'
 
   # TODO: mingw doesn't have these headers or libs
@@ -57,7 +53,7 @@ elif host_machine.system() == 'windows'
   #)
 
 else
-  hexchat_gtk_sources += 'notifications/notification-dummy.c'
+  hexchat_gtk_sources += 'notifications/notification-freedesktop.c'
 endif
 
 iso_codes = dependency('iso-codes', required: false)
@@ -69,7 +65,7 @@ if iso_codes.found()
                         join_paths(iso_codes_prefix, 'share/locale'))
 endif
 
-if get_option('with-plugin')
+if get_option('plugin')
   hexchat_gtk_sources += 'plugingui.c'
 endif
 

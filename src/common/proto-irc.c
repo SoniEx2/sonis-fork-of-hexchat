@@ -460,6 +460,18 @@ channel_date (session *sess, char *chan, char *timestr,
 								  tags_data->timestamp);
 }
 
+static int
+trailing_index(const char *word_eol[])
+{
+	int param_index;
+	for (param_index = 3; param_index < PDIWORDS; ++param_index)
+	{
+		if (word_eol[param_index][0] == ':')
+			break;
+	}
+	return param_index;
+}
+
 static void
 process_numeric (session * sess, int n,
 					  char *word[], char *word_eol[], char *text,
@@ -489,22 +501,6 @@ process_numeric (session * sess, int n,
 				inbound_foundip (sess, strrchr(word[10], '@')+1, tags_data);
 		}
 
-		goto def;
-
-	case 4:	/* check the ircd type */
-		serv->use_listargs = FALSE;
-		serv->modes_per_line = 3;		/* default to IRC RFC */
-		if (strncmp (word[5], "bahamut", 7) == 0)				/* DALNet */
-		{
-			serv->use_listargs = TRUE;		/* use the /list args */
-		} else if (strncmp (word[5], "u2.10.", 6) == 0)		/* Undernet */
-		{
-			serv->use_listargs = TRUE;		/* use the /list args */
-			serv->modes_per_line = 6;		/* allow 6 modes per line */
-		} else if (strncmp (word[5], "glx2", 4) == 0)
-		{
-			serv->use_listargs = TRUE;		/* use the /list args */
-		}
 		goto def;
 
 	case 5:
@@ -631,7 +627,7 @@ process_numeric (session * sess, int n,
 	case 320:	/* :is an identified user */
 		if (!serv->skip_next_whois)
 			EMIT_SIGNAL_TIMESTAMP (XP_TE_WHOIS_ID, whois_sess, word[4],
-										  word_eol[5] + 1, NULL, NULL, 0,
+										  word_eol[5][0] == ':' ? word_eol[5] + 1 : word_eol[5], NULL, NULL, 0,
 										  tags_data->timestamp);
 		break;
 
@@ -801,7 +797,7 @@ process_numeric (session * sess, int n,
 		break;
 
 	case 346:	/* +I-list entry */
-		if (!inbound_banlist (sess, atol (word[7]), word[4], word[5], word[6], 346,
+		if (!inbound_banlist (sess, atol (STRIP_COLON (word, word_eol, 7)), word[4], word[5], word[6], 346,
 									 tags_data))
 			goto def;
 		break;
@@ -812,7 +808,7 @@ process_numeric (session * sess, int n,
 		break;
 
 	case 348:	/* +e-list entry */
-		if (!inbound_banlist (sess, atol (word[7]), word[4], word[5], word[6], 348,
+		if (!inbound_banlist (sess, atol (STRIP_COLON (word, word_eol, 7)), word[4], word[5], word[6], 348,
 									 tags_data))
 			goto def;
 		break;
@@ -837,7 +833,7 @@ process_numeric (session * sess, int n,
 		break;
 
 	case 367: /* banlist entry */
-		if (!inbound_banlist (sess, atol (word[7]), word[4], word[5], word[6], 367,
+		if (!inbound_banlist (sess, atol (STRIP_COLON (word, word_eol, 7)), word[4], word[5], word[6], 367,
 									 tags_data))
 			goto def;
 		break;
@@ -922,6 +918,14 @@ process_numeric (session * sess, int n,
 	case 600:
 	case 604:
 		notify_set_online (serv, word[4], tags_data);
+		break;
+
+	case 524: // ERR_HELPNOTFOUND
+	case 704: // RPL_HELPSTART
+	case 705: // RPL_HELPTXT
+	case 706: // RPL_ENDOFHELP
+		EMIT_SIGNAL_TIMESTAMP (XP_TE_SERVTEXT, sess, STRIP_COLON(word, word_eol, 5), NULL, NULL, NULL,
+									  0, tags_data->timestamp);
 		break;
 
 	case 728:	/* +q-list entry */
@@ -1139,6 +1143,39 @@ process_named_msg (session *sess, char *type, char *word[], char *word_eol[],
 										(word_eol[3][0] == ':') ? word_eol[3] + 1 : NULL,
 										tags_data);
 			return;
+
+		case WORDL('F','A','I','L'):
+			text = STRIP_COLON(word, word_eol, trailing_index(word_eol));
+			if (g_strcmp0(word[3], "*") == 0)
+			{
+				EMIT_SIGNAL_TIMESTAMP (XP_TE_FAIL, sess, word[4], text, NULL, NULL, NULL, tags_data->timestamp);
+			} else
+			{
+				EMIT_SIGNAL_TIMESTAMP (XP_TE_FAILCMD, sess, word[3], word[4], text, NULL, NULL, tags_data->timestamp);
+			}
+			return;
+
+		case WORDL('W','A','R','N'):
+			text = STRIP_COLON(word, word_eol, trailing_index(word_eol));
+			if (g_strcmp0(word[3], "*") == 0)
+			{
+				EMIT_SIGNAL_TIMESTAMP (XP_TE_WARN, sess, word[4], text, NULL, NULL, NULL, tags_data->timestamp);
+			} else
+			{
+				EMIT_SIGNAL_TIMESTAMP (XP_TE_WARNCMD, sess, word[3], word[4], text, NULL, NULL, tags_data->timestamp);
+			}
+			return;
+
+		case WORDL('N','O','T','E'):
+			text = STRIP_COLON(word, word_eol, trailing_index(word_eol));
+			if (g_strcmp0(word[3], "*") == 0)
+			{
+				EMIT_SIGNAL_TIMESTAMP (XP_TE_NOTE, sess, word[4], text, NULL, NULL, NULL, tags_data->timestamp);
+			} else
+			{
+				EMIT_SIGNAL_TIMESTAMP (XP_TE_NOTECMD, sess, word[3], word[4], text, NULL, NULL, tags_data->timestamp);
+			}
+			return;
 		}
 
 		goto garbage;
@@ -1189,8 +1226,6 @@ process_named_msg (session *sess, char *type, char *word[], char *word_eol[],
 
 		case WORDL('N','O','T','I'):
 			{
-				int id = FALSE;								/* identified */
-
 				text = word_eol[4];
 				if (*text == ':')
 				{
@@ -1219,18 +1254,8 @@ process_named_msg (session *sess, char *type, char *word[], char *word_eol[],
 				}
 #endif
 
-				if (serv->have_idmsg)
-				{
-					if (*text == '+')
-					{
-						id = TRUE;
-						text++;
-					} else if (*text == '-')
-						text++;
-				}
-
 				if (!ignore_check (word[1], IG_NOTI))
-					inbound_notice (serv, word[3], nick, text, ip, id, tags_data);
+					inbound_notice (serv, word[3], nick, text, ip, tags_data->identified, tags_data);
 			}
 			return;
 
@@ -1238,7 +1263,6 @@ process_named_msg (session *sess, char *type, char *word[], char *word_eol[],
 			{
 				char *to = word[3];
 				int len;
-				int id = FALSE;	/* identified */
 				if (*to)
 				{
 					/* Handle limited channel messages, for now no special event */
@@ -1249,15 +1273,7 @@ process_named_msg (session *sess, char *type, char *word[], char *word_eol[],
 					text = word_eol[4];
 					if (*text == ':')
 						text++;
-					if (serv->have_idmsg)
-					{
-						if (*text == '+')
-						{
-							id = TRUE;
-							text++;
-						} else if (*text == '-')
-							text++;
-					}
+
 					len = strlen (text);
 					if (text[0] == 1)	/* ctcp */
 					{
@@ -1289,7 +1305,7 @@ process_named_msg (session *sess, char *type, char *word[], char *word_eol[],
 							}
 						}
 
-						ctcp_handle (sess, to, nick, ip, text, word, word_eol, id,
+						ctcp_handle (sess, to, nick, ip, text, word, word_eol, tags_data->identified,
 										 tags_data);
 
 						/* Note word will be invalid beyond this scope */
@@ -1300,13 +1316,13 @@ process_named_msg (session *sess, char *type, char *word[], char *word_eol[],
 						{
 							if (ignore_check (word[1], IG_CHAN))
 								return;
-							inbound_chanmsg (serv, NULL, to, nick, text, FALSE, id,
+							inbound_chanmsg (serv, NULL, to, nick, text, FALSE, tags_data->identified,
 												  tags_data);
 						} else
 						{
 							if (ignore_check (word[1], IG_PRIV))
 								return;
-							inbound_privmsg (serv, nick, ip, text, id, tags_data);
+							inbound_privmsg (serv, nick, ip, text, tags_data->identified, tags_data);
 						}
 					}
 				}
@@ -1536,6 +1552,9 @@ handle_message_tags (server *serv, const char *tags_str,
 
 		if (serv->have_account_tag && !strcmp (key, "account"))
 			tags_data->account = g_strdup (value);
+
+		if (serv->have_idmsg && strcmp (key, "solanum.chat/identified"))
+			tags_data->identified = TRUE;
 
 		if (serv->have_server_time && !strcmp (key, "time"))
 			handle_message_tag_time (value, tags_data);

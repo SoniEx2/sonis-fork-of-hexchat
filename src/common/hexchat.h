@@ -503,7 +503,7 @@ typedef struct server
 	char servername[128];			/* what the server says is its name */
 	char password[86];
 	char nick[NICKLEN];
-	char linebuf[2048];				/* RFC says 512 chars including \r\n */
+	char linebuf[8704];				/* RFC says 512 chars including \r\n, IRCv3 message tags add 8191, plus the NUL byte */
 	char *last_away_reason;
 	int pos;								/* current position in linebuf */
 	int nickcount;
@@ -567,7 +567,7 @@ typedef struct server
 	unsigned int have_awaynotify:1;
 	unsigned int have_uhnames:1;
 	unsigned int have_whox:1;		/* have undernet's WHOX features */
-	unsigned int have_idmsg:1;		/* freenode's IDENTIFY-MSG */
+	unsigned int have_idmsg:1;		/* cap solanum.chat/identify-msg */
 	unsigned int have_accnotify:1; /* cap account-notify */
 	unsigned int have_extjoin:1;	/* cap extended-join */
 	unsigned int have_account_tag:1;	/* cap account-tag */

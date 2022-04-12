@@ -61,10 +61,6 @@
 #include "ssl.h"
 #endif
 
-#ifdef USE_LIBPROXY
-#include <proxy.h>
-#endif
-
 #ifdef USE_OPENSSL
 /* local variables */
 static struct session *g_sess = NULL;
@@ -78,9 +74,15 @@ static void server_disconnect (session * sess, int sendquit, int err);
 static int server_cleanup (server * serv);
 static void server_connect (server *serv, char *hostname, int port, int no_login);
 
-#ifdef USE_LIBPROXY
-extern pxProxyFactory *libproxy_factory;
-#endif
+static void
+write_error (char *message, GError **error)
+{
+	if (error == NULL || *error == NULL) {
+		return;
+	}
+	g_printerr ("%s: %s\n", message, (*error)->message);
+	g_clear_error (error);
+}
 
 /* actually send to the socket. This might do a character translation or
    send via SSL. server/dcc both use this function. */
@@ -360,7 +362,7 @@ server_read (GIOChannel *source, GIOCondition condition, server *serv)
 				serv->linebuf[serv->pos] = lbuf[i];
 				if (serv->pos >= (sizeof (serv->linebuf) - 1))
 					fprintf (stderr,
-								"*** HEXCHAT WARNING: Buffer overflow - shit server!\n");
+								"*** HEXCHAT WARNING: Buffer overflow - non-compliant server!\n");
 				else
 					serv->pos++;
 			}
@@ -770,7 +772,7 @@ server_connect_success (server *serv)
 
 		/* it'll be a memory leak, if connection isn't terminated by
 		   server_cleanup() */
-		if ((err = _SSL_set_verify (serv->ctx, ssl_cb_verify, NULL)))
+		if ((err = _SSL_set_verify (serv->ctx, ssl_cb_verify)))
 		{
 			EMIT_SIGNAL (XP_TE_CONNFAIL, serv->server_session, err, NULL,
 							 NULL, NULL, 0);
@@ -1392,14 +1394,16 @@ server_child (server * serv)
 
 	if (!serv->dont_use_proxy) /* blocked in serverlist? */
 	{
-#ifdef USE_LIBPROXY
 		if (prefs.hex_net_proxy_type == 5)
 		{
 			char **proxy_list;
 			char *url, *proxy;
+			GProxyResolver *resolver;
+			GError *error = NULL;
 
+			resolver = g_proxy_resolver_get_default ();
 			url = g_strdup_printf ("irc://%s:%d", hostname, port);
-			proxy_list = px_proxy_factory_get_proxies (libproxy_factory, url);
+			proxy_list = g_proxy_resolver_lookup (resolver, url, NULL, &error);
 
 			if (proxy_list) {
 				/* can use only one */
@@ -1412,6 +1416,8 @@ server_child (server * serv)
 					proxy_type = 3;
 				else if (!strncmp (proxy, "socks", 5))
 					proxy_type = 2;
+			} else {
+				write_error ("Failed to lookup proxy", &error);
 			}
 
 			if (proxy_type) {
@@ -1426,7 +1432,7 @@ server_child (server * serv)
 			g_strfreev (proxy_list);
 			g_free (url);
 		}
-#endif
+
 		if (prefs.hex_net_proxy_host[0] &&
 			   prefs.hex_net_proxy_type > 0 &&
 			   prefs.hex_net_proxy_use != 2) /* proxy is NOT dcc-only */
@@ -1553,7 +1559,7 @@ server_connect (server *serv, char *hostname, int port, int no_login)
 	if (!hostname[0])
 		return;
 
-	if (port < 0)
+	if (port < 1 || port > 65535)
 	{
 		/* use default port for this server type */
 		port = 6667;
@@ -1561,8 +1567,8 @@ server_connect (server *serv, char *hostname, int port, int no_login)
 		if (serv->use_ssl)
 			port = 6697;
 #endif
+		g_debug ("Attempted to connect to invalid port, assuming default port %d", port);
 	}
-	port &= 0xffff;	/* wrap around */
 
 	if (serv->connected || serv->connecting || serv->recondelay_tag)
 		server_disconnect (sess, TRUE, -1);
@@ -1764,6 +1770,7 @@ server_set_defaults (server *serv)
 	serv->chanmodes = g_strdup ("beI,k,l");
 	serv->nick_prefixes = g_strdup ("@%+");
 	serv->nick_modes = g_strdup ("ohv");
+	serv->modes_per_line = 3; /* https://datatracker.ietf.org/doc/html/rfc1459#section-4.2.3.1 */
 	serv->sasl_mech = MECH_PLAIN;
 
 	if (!serv->encoding)
@@ -1772,6 +1779,7 @@ server_set_defaults (server *serv)
 	serv->nickcount = 1;
 	serv->end_of_motd = FALSE;
 	serv->sent_capend = FALSE;
+	serv->use_listargs = FALSE;
 	serv->is_away = FALSE;
 	serv->supports_watch = FALSE;
 	serv->supports_monitor = FALSE;

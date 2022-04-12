@@ -67,8 +67,8 @@ send_channel_modes (session *sess, char *tbuf, char *word[], int wpos,
 	int usable_modes, orig_len, len, wlen, i, max;
 	server *serv = sess->server;
 
-	/* sanity check. IRC RFC says three per line. */
-	if (serv->modes_per_line < 3)
+	/* sanity check. IRC RFC says three per line but some servers may support less. */
+	if (serv->modes_per_line < 1)
 		serv->modes_per_line = 3;
 	if (modes_per_line < 1)
 		modes_per_line = serv->modes_per_line;
@@ -880,7 +880,7 @@ inbound_005 (server * serv, char *word[], const message_tags_data *tags_data)
 				g_free (serv->nick_prefixes);
 				g_free (serv->nick_modes);
 				serv->nick_prefixes = g_strdup (pre + 1);
-				serv->nick_modes = g_strdup (tokvalue);
+				serv->nick_modes = g_strdup (tokvalue + 1);
 			} else
 			{
 				/* bad! some ircds don't give us the modes. */
@@ -913,6 +913,9 @@ inbound_005 (server * serv, char *word[], const message_tags_data *tags_data)
 			{
 				server_set_encoding (serv, "UTF-8");
 			}
+		} else if (g_strcmp0 (tokname, "UTF8ONLY") == 0)
+		{
+			server_set_encoding (serv, "UTF-8");
 		} else if (g_strcmp0 (tokname, "NAMESX") == 0)
 		{
 									/* 12345678901234567 */

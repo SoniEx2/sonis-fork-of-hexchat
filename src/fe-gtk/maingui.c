@@ -963,7 +963,7 @@ mg_populate (session *sess)
 
 	mg_set_topic_tip (sess);
 
-	plugin_emit_dummy_print (sess, "Focus Tab");
+	plugin_emit_dummy_print (sess, "Focus Tab", -1);
 }
 
 void
@@ -3081,7 +3081,7 @@ mg_tabwin_focus_cb (GtkWindow * win, GdkEventFocus *event, gpointer userdata)
 	if (current_sess)
 	{
 		gtk_xtext_check_marker_visibility (GTK_XTEXT (current_sess->gui->xtext));
-		plugin_emit_dummy_print (current_sess, "Focus Window");
+		plugin_emit_dummy_print (current_sess, "Focus Window", -1);
 	}
 	unflash_window (GTK_WIDGET (win));
 	return FALSE;
@@ -3095,7 +3095,7 @@ mg_topwin_focus_cb (GtkWindow * win, GdkEventFocus *event, session *sess)
 		sess->server->server_session = sess;
 	gtk_xtext_check_marker_visibility(GTK_XTEXT (current_sess->gui->xtext));
 	unflash_window (GTK_WIDGET (win));
-	plugin_emit_dummy_print (sess, "Focus Window");
+	plugin_emit_dummy_print (sess, "Focus Window", -1);
 	return FALSE;
 }
 

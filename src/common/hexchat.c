@@ -552,7 +552,7 @@ new_ircwindow (server *serv, char *name, int type, int focus)
 		if (user && user->hostname)
 			set_topic (sess, user->hostname, user->hostname);
 	}
-	plugin_emit_dummy_print (sess, "Open Context");
+	plugin_emit_dummy_print (sess, "Open Context", -1);
 
 	return sess;
 }
@@ -629,7 +629,7 @@ session_free (session *killsess)
 	GSList *list;
 	int oldidx;
 
-	plugin_emit_dummy_print (killsess, "Close Context");
+	plugin_emit_dummy_print (killsess, "Close Context", 0);
 
 	if (current_tab == killsess)
 		current_tab = NULL;

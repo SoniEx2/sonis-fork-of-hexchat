@@ -572,7 +572,7 @@ plugin_hook_find (GSList *list, int type, char *name)
 
 static int
 plugin_hook_run (session *sess, char *name, char *word[], char *word_eol[],
-				 hexchat_event_attrs *attrs, int type)
+				 hexchat_event_attrs *attrs, int type, int mask)
 {
 	/* fix segfault https://github.com/hexchat/hexchat/issues/2265 */
 	static int depth = 0;
@@ -611,6 +611,8 @@ plugin_hook_run (session *sess, char *name, char *word[], char *word_eol[],
 			ret = ((hexchat_print_cb *)hook->callback) (word, hook->userdata);
 			break;
 		}
+
+		ret &= mask;
 
 		if ((ret & HEXCHAT_EAT_HEXCHAT) && (ret & HEXCHAT_EAT_PLUGIN))
 		{
@@ -652,7 +654,7 @@ xit:
 int
 plugin_emit_command (session *sess, char *name, char *word[], char *word_eol[])
 {
-	return plugin_hook_run (sess, name, word, word_eol, NULL, HOOK_COMMAND);
+	return plugin_hook_run (sess, name, word, word_eol, NULL, HOOK_COMMAND, -1);
 }
 
 hexchat_event_attrs *
@@ -678,7 +680,7 @@ plugin_emit_server (session *sess, char *name, char *word[], char *word_eol[],
 	attrs.server_time_utc = server_time;
 
 	return plugin_hook_run (sess, name, word, word_eol, &attrs, 
-							HOOK_SERVER | HOOK_SERVER_ATTRS);
+							HOOK_SERVER | HOOK_SERVER_ATTRS, -1);
 }
 
 /* see if any plugins are interested in this print event */
@@ -691,7 +693,7 @@ plugin_emit_print (session *sess, char *word[], time_t server_time)
 	attrs.server_time_utc = server_time;
 
 	return plugin_hook_run (sess, word[0], word, NULL, &attrs,
-							HOOK_PRINT | HOOK_PRINT_ATTRS);
+							HOOK_PRINT | HOOK_PRINT_ATTRS, -1);
 }
 
 /* used by plugin_emit_dummy_print to fix some UB */
@@ -707,7 +709,7 @@ check_and_invalidate(void *plug_, void *killsess_)
 }
 
 int
-plugin_emit_dummy_print (session *sess, char *name)
+plugin_emit_dummy_print (session *sess, char *name, int mask)
 {
 	char *word[PDIWORDS];
 	int i;
@@ -716,7 +718,7 @@ plugin_emit_dummy_print (session *sess, char *name)
 	for (i = 1; i < PDIWORDS; i++)
 		word[i] = "\000";
 
-	i = plugin_hook_run (sess, name, word, NULL, NULL, HOOK_PRINT);
+	i = plugin_hook_run (sess, name, word, NULL, NULL, HOOK_PRINT, mask);
 
 	/* shoehorned fix for Undefined Behaviour */
 	/* see https://stackoverflow.com/q/52628773/3691554 */
@@ -758,7 +760,7 @@ plugin_emit_keypress (session *sess, unsigned int state, unsigned int keyval, gu
 	for (i = 5; i < PDIWORDS; i++)
 		word[i] = "\000";
 
-	return plugin_hook_run (sess, word[0], word, NULL, NULL, HOOK_PRINT);
+	return plugin_hook_run (sess, word[0], word, NULL, NULL, HOOK_PRINT, -1);
 }
 
 static int

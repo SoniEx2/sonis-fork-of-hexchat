@@ -1474,9 +1474,16 @@ inbound_user_info (session *sess, char *chan, char *user, char *host,
 		for (list = sess_list; list; list = list->next)
 		{
 			sess = list->data;
-			if (sess->type == SESS_CHANNEL && sess->server == serv)
+			if (sess->server != serv)
+				continue;
+
+			if (sess->type == SESS_CHANNEL)
 			{
 				userlist_add_hostname (sess, nick, uhost, realname, servname, account, away);
+			}
+			else if (sess->type == SESS_DIALOG && uhost && !serv->p_cmp (sess->channel, nick))
+			{
+				set_topic (sess, uhost, uhost);
 			}
 		}
 	}
@@ -1728,6 +1735,7 @@ static const char * const supported_caps[] = {
 	"setname",
 	"invite-notify",
 	"account-tag",
+	"extended-monitor",
 
 	/* ZNC */
 	"znc.in/server-time-iso",
@@ -1929,7 +1937,24 @@ inbound_sasl_authenticate (server *serv, char *data)
 			return;
 		}
 
-		tcp_sendf (serv, "AUTHENTICATE %s\r\n", pass);
+		/* long SASL passwords must be split into 400-byte chunks
+		   https://ircv3.net/specs/extensions/sasl-3.1#the-authenticate-command */
+		size_t pass_len = strlen (pass);
+		if (pass_len <= 400)
+			tcp_sendf (serv, "AUTHENTICATE %s\r\n", pass);
+		else
+		{
+			size_t sent = 0;
+			while (sent < pass_len)
+			{
+				char *pass_chunk = g_strndup (pass + sent, 400);
+				tcp_sendf (serv, "AUTHENTICATE %s\r\n", pass_chunk);
+				sent += 400;
+				g_free (pass_chunk);
+			}
+		}
+		if (pass_len % 400 == 0)
+			tcp_sendf (serv, "AUTHENTICATE +\r\n");
 		g_free (pass);
 
 		

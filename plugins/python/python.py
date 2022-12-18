@@ -146,8 +146,8 @@ class Plugin:
     def loadfile(self, filename):
         try:
             self.filename = filename
-            with open(filename, encoding='utf-8') as f:
-                data = f.read()
+            with open(filename, 'rb') as f:
+                data = f.read().decode('utf-8')
             compiled = compile_file(data, filename)
             exec(compiled, self.globals)
 
@@ -284,7 +284,7 @@ def _on_server_attrs_hook(word, word_eol, attrs, userdata):
 @ffi.def_extern()
 def _on_timer_hook(userdata):
     hook = ffi.from_handle(userdata)
-    if hook.callback(hook.userdata) is True:
+    if hook.callback(hook.userdata) == True:
         return 1
 
     hook.is_unload = True  # Don't unhook

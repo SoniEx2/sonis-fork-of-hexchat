@@ -612,6 +612,9 @@ plugin_hook_run (session *sess, char *name, char *word[], char *word_eol[],
 			break;
 		}
 
+		if ((ret & mask) != ret) {
+			g_critical("plugin tried to eat cleanup hooks");
+		}
 		ret &= mask;
 
 		if ((ret & HEXCHAT_EAT_HEXCHAT) && (ret & HEXCHAT_EAT_PLUGIN))
@@ -1151,12 +1154,16 @@ hexchat_get_context (hexchat_plugin *ph)
 int
 hexchat_set_context (hexchat_plugin *ph, hexchat_context *context)
 {
-	if (is_session (context))
-	{
-		ph->context = context;
-		return 1;
+	if (context == NULL) {
+		return 0;
 	}
-	return 0;
+	if (!is_session (context))
+	{
+		g_critical("plugin tried to set an invalid context");
+		return 0;
+	}
+	ph->context = context;
+	return 1;
 }
 
 hexchat_context *

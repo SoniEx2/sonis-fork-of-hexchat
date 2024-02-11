@@ -305,6 +305,9 @@ static const struct defaultserver def[] =
 	{"Techtronix",	0, 0, 0, LOGIN_SASL, 0, TRUE},
 	{0,			"irc.techtronix.net"},
 	
+	{"TechNet", 0, 0, 0, LOGIN_SASL, 0, TRUE},
+	{0,			"irc.technet.chat"},
+	
 	{"tilde.chat", 0, 0, 0, LOGIN_SASL, 0, TRUE},
 	{0,			"irc.tilde.chat"},
 
@@ -323,7 +326,7 @@ static const struct defaultserver def[] =
 #endif	
 
 	{"UnderNet", 0, 0, 0, LOGIN_CUSTOM, "MSG x@channels.undernet.org login %u %p"},
-	{0,			"us.undernet.org"},
+	{0,			"irc.undernet.org"},
 
 	{"Xertion", 0, 0, 0, LOGIN_SASL, 0, TRUE},
 	{0,			"irc.xertion.org"},

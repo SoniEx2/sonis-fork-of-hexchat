@@ -41,6 +41,7 @@
 
 #ifdef USE_OPENSSL
 #include <openssl/ssl.h>		  /* SSL_() */
+#include "scram.h"
 #endif
 
 #ifdef __EMX__						  /* for o/s 2 */
@@ -150,6 +151,7 @@ struct hexchatprefs
 	unsigned int hex_gui_ulist_style;
 	unsigned int hex_gui_usermenu;
 	unsigned int hex_gui_win_modes;
+	unsigned int hex_gui_win_nick;
 	unsigned int hex_gui_win_save;
 	unsigned int hex_gui_win_swap;
 	unsigned int hex_gui_win_ucount;
@@ -429,6 +431,9 @@ typedef struct session
 /* SASL Mechanisms */
 #define MECH_PLAIN 0
 #define MECH_EXTERNAL 1
+#define MECH_SCRAM_SHA_1 2
+#define MECH_SCRAM_SHA_256 3
+#define MECH_SCRAM_SHA_512 4
 
 typedef struct server
 {
@@ -584,6 +589,7 @@ typedef struct server
 #ifdef USE_OPENSSL
 	unsigned int use_ssl:1;				  /* is server SSL capable? */
 	unsigned int accept_invalid_cert:1;/* ignore result of server's cert. verify */
+	scram_session *scram_session; /* session for SASL SCRAM authentication */
 #endif
 } server;
 

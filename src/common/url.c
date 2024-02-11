@@ -536,6 +536,7 @@ struct
 	{ "lastfm",    "/", URI_PATH },
 	{ "xfire",     "",  URI_PATH },
 	{ "ts3server", "",  URI_PATH },
+	{ "web+*",      "", URI_AUTHORITY | URI_OPT_USERINFO | URI_PATH },
 	{ NULL,        "",  0}
 };
 
@@ -569,7 +570,21 @@ re_url (void)
 			g_string_append (grist_gstr, "|");
 
 		g_string_append (grist_gstr, "(");
-		g_string_append_printf (grist_gstr, "%s:", uri[i].scheme);
+
+		if (!strcmp(uri[i].scheme, "web+*"))
+		{
+			g_string_append(grist_gstr, "web\\+[a-z]+");
+		}
+		else
+		{
+			char *scheme_escaped = g_regex_escape_string (uri[i].scheme, strlen(uri[i].scheme));
+
+			g_string_append_printf (grist_gstr, "%s", scheme_escaped);
+
+			g_free (scheme_escaped);
+		}
+
+		g_string_append(grist_gstr, ":");
 
 		if (uri[i].flags & URI_AUTHORITY)
 			g_string_append (grist_gstr, "//");

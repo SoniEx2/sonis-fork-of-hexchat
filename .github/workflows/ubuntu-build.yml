@@ -2,10 +2,10 @@ name: Ubuntu Build
 on:
   push:
     branches:
-      - master
+      - default
   pull_request:
     branches:
-      - master
+      - default
 
 jobs:
   ubuntu_build:

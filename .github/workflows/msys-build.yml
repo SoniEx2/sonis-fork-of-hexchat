@@ -2,10 +2,10 @@ name: MSYS2 Build
 on:
   push:
     branches:
-      - master
+      - default
   pull_request:
     branches:
-      - master
+      - default
 
 jobs:
   msys2_build:

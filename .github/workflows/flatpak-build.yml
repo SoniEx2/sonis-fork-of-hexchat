@@ -2,10 +2,10 @@ name: Flatpak Build
 on:
   push:
     branches:
-      - master
+      - default
   pull_request:
     branches:
-      - master
+      - default
 
 jobs:
   flatpak_build:

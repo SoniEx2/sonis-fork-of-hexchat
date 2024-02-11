@@ -2,10 +2,10 @@ name: Windows Build
 on:
   push:
     branches:
-      - master
+      - default
   pull_request:
     branches:
-      - master
+      - default
 
 jobs:
   windows_build:

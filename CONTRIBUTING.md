@@ -1,5 +1,5 @@
-Contributing
-============
+Contribution guidelines
+=======================
 
 Inclusive language
 ------------------

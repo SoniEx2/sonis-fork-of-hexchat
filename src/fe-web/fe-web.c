@@ -1,4 +1,6 @@
-/* X-Chat
+/* LipstixChat
+ * Copyright (C) 2024 Soni L.
+ * X-Chat
  * Copyright (C) 1998 Peter Zelezny.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -16,6 +18,17 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+/* The purpose of the web-based frontend is that you don't need to migrate
+ * gtk versions if you drop gtk altogether.
+ *
+ * Yeah, really.
+ *
+ * The cool thing about the web is that it's unlikely to change much in the
+ * next 25 years. Websites from the early 2000s still work more or less fine
+ * at the time of writing this. (Websites from the 2010s don't work as fine,
+ * thanks Flash, but at least that's actually dead now.)
+ */
+
 #include "config.h"
 
 #include <stdio.h>
@@ -24,6 +37,7 @@
 #ifdef HAVE_STRINGS_H
 #include <strings.h>
 #endif
+#if 0
 #ifdef WIN32
 #include <io.h>
 #define STDIN_FILENO 0
@@ -32,9 +46,11 @@
 #include <unistd.h>
 #include <sys/time.h>
 #endif
+#endif
 #include <sys/types.h>
 #include <ctype.h>
 #include <glib-object.h>
+#include <libsoup/soup.h>
 #include "../common/hexchat.h"
 #include "../common/hexchatc.h"
 #include "../common/cfgfiles.h"
@@ -46,31 +62,18 @@
 
 static int done = FALSE;		  /* finished ? */
 
+static char cookie_key[65] = {0};
 
 static void
-send_command (char *cmd)
+init_cookie_key (void)
 {
-	handle_multiline (current_tab, cmd, TRUE, FALSE);
+	/* TODO */
 }
 
-static gboolean
-handle_line (GIOChannel *channel, GIOCondition cond, gpointer data)
+static void
+free_uri_data (gpointer data)
 {
-
-	gchar *str_return;
-	gsize length, terminator_pos;
-	GError *error = NULL;
-	GIOStatus result;
-
-	result = g_io_channel_read_line(channel, &str_return, &length, &terminator_pos, &error);
-	if (result == G_IO_STATUS_ERROR || result == G_IO_STATUS_EOF) {
-		return FALSE;
-	}
-	else {
-		send_command(str_return);
-		g_free(str_return);
-		return TRUE;
-	}
+	g_uri_unref (data);
 }
 
 static int done_intro = 0;
@@ -134,274 +137,56 @@ timecat (char *buf, time_t stamp)
 	return strlen (stampbuf);
 }
 
-/* Windows doesn't handle ANSI codes in cmd.exe, need to not display them */
-#ifndef WIN32
-/*                               0  1  2  3  4  5  6  7   8   9  10  11  12  13  14 15 */
-static const short colconv[] = { 0, 7, 4, 2, 1, 3, 5, 11, 13, 12, 6, 16, 14, 15, 10, 7 };
+static int
+check_cookies (const char *cookies)
+{
+	/* fun fact, if browsers ever add 'reverse http/2', we can yeet this */
+	/* ps. there's no cookie isolation between different ports,
+	 * this just prevents arbitrary websites from making useful requests */
+	if (!cookies)
+		return 0;
+
+	if (!g_str_has_prefix (cookies, "csrfkey="))
+		return 0;
+
+	cookies = cookies + strlen ("csrfkey=");
+
+	return !strcmp (cookies, cookie_key);
+}
+
+#define REDIR_MSG "<html><head><title></title></head><body>Redirecting to <a href=\"/\">/</a>. This app requires session cookies.</body></html>\n"
+
+static void
+server_callback (SoupServer *server, SoupServerMessage *msg, const char *path, GHashTable *query, gpointer user_data)
+{
+	SoupMessageHeaders *reqheaders;
+	SoupMessageHeaders *resheaders;
+	const char *cookies;
+
+	reqheaders = soup_server_message_get_request_headers (msg);
+	resheaders = soup_server_message_get_response_headers (msg);
+	cookies = soup_message_headers_get_one (reqheaders, "Cookie");
+	if (!check_cookies (cookies))
+	{
+		g_print("authorizing new client");
+		soup_server_message_set_redirect (msg, 303, "/");
+		soup_server_message_set_response (msg, "text/html", SOUP_MEMORY_STATIC, REDIR_MSG, strlen (REDIR_MSG));
+		soup_message_headers_append (resheaders, "Set-Cookie", "csrfkey=; SameSite=Strict; HttpOnly");
+		return;
+	}
+
+	g_print("got %s request for: %s\n", soup_server_message_get_method (msg), path);
+	if (!strcmp("/", path))
+	{
+		g_print("handling main page");
+	}
+}
 
 void
 fe_print_text (struct session *sess, char *text, time_t stamp,
 			   gboolean no_activity)
 {
-	int dotime = FALSE;
-	char num[8];
-	int reverse = 0, under = 0, bold = 0,
-		comma, k, i = 0, j = 0, len = strlen (text);
-	unsigned char *newtext = g_malloc (len + 1024);
-
-	if (prefs.hex_stamp_text)
-	{
-		newtext[0] = 0;
-		j += timecat (newtext, stamp);
-	}
-	while (i < len)
-	{
-		if (dotime && text[i] != 0)
-		{
-			dotime = FALSE;
-			newtext[j] = 0;
-			j += timecat (newtext, stamp);
-		}
-		switch (text[i])
-		{
-		case 3:
-			i++;
-			if (!isdigit (text[i]))
-			{
-				newtext[j] = 27;
-				j++;
-				newtext[j] = '[';
-				j++;
-				newtext[j] = 'm';
-				j++;
-				goto endloop;
-			}
-			k = 0;
-			comma = FALSE;
-			while (i < len)
-			{
-				if (text[i] >= '0' && text[i] <= '9' && k < 2)
-				{
-					num[k] = text[i];
-					k++;
-				} else
-				{
-					int col, mirc;
-					num[k] = 0;
-					newtext[j] = 27;
-					j++;
-					newtext[j] = '[';
-					j++;
-					if (k == 0)
-					{
-						newtext[j] = 'm';
-						j++;
-					} else
-					{
-						if (comma)
-							col = 40;
-						else
-							col = 30;
-						mirc = atoi (num);
-						mirc = colconv[mirc % G_N_ELEMENTS(colconv)];
-						if (mirc > 9)
-						{
-							mirc += 50;
-							sprintf ((char *) &newtext[j], "%dm", mirc + col);
-						} else
-						{
-							sprintf ((char *) &newtext[j], "%dm", mirc + col);
-						}
-						j = strlen (newtext);
-					}
-					switch (text[i])
-					{
-					case ',':
-						comma = TRUE;
-						break;
-					default:
-						goto endloop;
-					}
-					k = 0;
-				}
-				i++;
-			}
-			break;
-		/* don't actually want hidden text */
-		case '\010':				  /* hidden */
-			break;
-		case '\026':				  /* REVERSE */
-			if (reverse)
-			{
-				reverse = FALSE;
-				strcpy (&newtext[j], "\033[27m");
-			} else
-			{
-				reverse = TRUE;
-				strcpy (&newtext[j], "\033[7m");
-			}
-			j = strlen (newtext);
-			break;
-		case '\037':				  /* underline */
-			if (under)
-			{
-				under = FALSE;
-				strcpy (&newtext[j], "\033[24m");
-			} else
-			{
-				under = TRUE;
-				strcpy (&newtext[j], "\033[4m");
-			}
-			j = strlen (newtext);
-			break;
-		case '\002':				  /* bold */
-			if (bold)
-			{
-				bold = FALSE;
-				strcpy (&newtext[j], "\033[22m");
-			} else
-			{
-				bold = TRUE;
-				strcpy (&newtext[j], "\033[1m");
-			}
-			j = strlen (newtext);
-			break;
-		case '\007':
-			if (!prefs.hex_input_filter_beep)
-			{
-				newtext[j] = text[i];
-				j++;
-			}
-			break;
-		case '\017':				  /* reset all */
-			strcpy (&newtext[j], "\033[m");
-			j += 3;
-			reverse = FALSE;
-			bold = FALSE;
-			under = FALSE;
-			break;
-		case '\t':
-			newtext[j] = ' ';
-			j++;
-			break;
-		case '\n':
-			newtext[j] = '\r';
-			j++;
-			if (prefs.hex_stamp_text)
-				dotime = TRUE;
-		default:
-			newtext[j] = text[i];
-			j++;
-		}
-		i++;
-		endloop:
-			;
-	}
-
-	/* make sure last character is a new line */
-	if (text[i-1] != '\n')
-		newtext[j++] = '\n';
-
-	newtext[j] = 0;
-	write (STDOUT_FILENO, newtext, j);
-	g_free (newtext);
 }
-#else
-/* The win32 version for cmd.exe */
-void
-fe_print_text (struct session *sess, char *text, time_t stamp,
-			   gboolean no_activity)
-{
-	int dotime = FALSE;
-	int comma, k, i = 0, j = 0, len = strlen (text);
-
-	unsigned char *newtext = g_malloc (len + 1024);
-
-	if (prefs.hex_stamp_text)
-	{
-		newtext[0] = 0;
-		j += timecat (newtext, stamp);
-	}
-	while (i < len)
-	{
-		if (dotime && text[i] != 0)
-		{
-			dotime = FALSE;
-			newtext[j] = 0;
-			j += timecat (newtext, stamp);
-		}
-		switch (text[i])
-		{
-		case 3:
-			i++;
-			if (!isdigit (text[i]))
-			{
-				goto endloop;
-			}
-			k = 0;
-			comma = FALSE;
-			while (i < len)
-			{
-				if (text[i] >= '0' && text[i] <= '9' && k < 2)
-				{
-					k++;
-				} else
-				{
-					switch (text[i])
-					{
-					case ',':
-						comma = TRUE;
-						break;
-					default:
-						goto endloop;
-					}
-					k = 0;
-
-				}
-				i++;
-			}
-			break;
-		/* don't actually want hidden text */
-		case '\010':				  /* hidden */
-		case '\026':				  /* REVERSE */
-		case '\037':				  /* underline */
-		case '\002':				  /* bold */
-		case '\017':				  /* reset all */
-			break;
-		case '\007':
-			if (!prefs.hex_input_filter_beep)
-			{
-				newtext[j] = text[i];
-				j++;
-			}
-			break;
-		case '\t':
-			newtext[j] = ' ';
-			j++;
-			break;
-		case '\n':
-			newtext[j] = '\r';
-			j++;
-			if (prefs.hex_stamp_text)
-				dotime = TRUE;
-		default:
-			newtext[j] = text[i];
-			j++;
-		}
-		i++;
-		endloop:
-			;
-	}
-
-	/* make sure last character is a new line */
-	if (text[i-1] != '\n')
-		newtext[j++] = '\n';
-
-	newtext[j] = 0;
-	write (STDOUT_FILENO, newtext, j);
-	g_free (newtext);
-}
-#endif
 
 void
 fe_timeout_remove (int tag)
@@ -461,6 +246,7 @@ static char *arg_cfgdir = NULL;
 static gint arg_show_autoload = 0;
 static gint arg_show_config = 0;
 static gint arg_show_version = 0;
+static gint arg_dont_open = 0;
 
 static const GOptionEntry gopt_entries[] = 
 {
@@ -471,6 +257,7 @@ static const GOptionEntry gopt_entries[] =
  {"configdir",	'u', 0, G_OPTION_ARG_NONE,	&arg_show_config, N_("Show user config directory"), NULL},
  {"url",	 0,  G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_STRING,	&arg_url, N_("Open an irc://server:port/channel URL"), "URL"},
  {"version",	'v', 0, G_OPTION_ARG_NONE,	&arg_show_version, N_("Show version information"), NULL},
+ /*{"no-open",	'o', 0, G_OPTION_ARG_NONE,	&arg_dont_open, N_("Don't open"), NULL},*/
  {G_OPTION_REMAINING, '\0', 0, G_OPTION_ARG_STRING_ARRAY, &arg_urls, N_("Open an irc://server:port/channel?key URL"), "URL"},
  {NULL}
 };
@@ -550,6 +337,7 @@ fe_args (int argc, char *argv[])
 void
 fe_init (void)
 {
+	/* FIXME: remove these once they're implemented */
 	/* the following should be default generated, not enfoced in binary */
 	prefs.hex_gui_tab_server = 0;
 	prefs.hex_gui_autoopen_dialog = 0;
@@ -561,18 +349,45 @@ fe_init (void)
 void
 fe_main (void)
 {
-	GIOChannel *keyboard_input;
+	SoupServer *server;
+	GSList *l, *li;
+	int port = 0;
 
 	main_loop = g_main_loop_new(NULL, FALSE);
+	server = soup_server_new ("server-header", PACKAGE_NAME"/"PACKAGE_VERSION, NULL);
+	if (!server)
+	{
+		/* ??? */
+		abort();
+	}
+	if (!soup_server_listen_local (server, 0, SOUP_SERVER_LISTEN_IPV6_ONLY, NULL))
+	{
+		/* FIXME error handling */
+		abort();
+	}
 
-	/* Keyboard Entry Setup */
-#ifdef G_OS_WIN32
-	keyboard_input = g_io_channel_win32_new_fd(STDIN_FILENO);
-#else
-	keyboard_input = g_io_channel_unix_new(STDIN_FILENO);
-#endif
+	init_cookie_key();
+	soup_server_add_handler (server, NULL, server_callback, NULL, NULL);
 
-	g_io_add_watch(keyboard_input, G_IO_IN, handle_line, NULL);
+	l = soup_server_get_uris (server);
+	for (li = l; li; li = li->next)
+	{
+		if (port != 0)
+		{
+			g_warning ("found multiple listen URIs, things may not work properly.");
+			break;
+		}
+		port = g_uri_get_port (li->data);
+		/* NOTE: this doesn't provide real csrf isolation between
+		 * localhost services, but lets multiple instances coexist */
+		g_print ("Listening on http://lipstixchat-%d.localhost:%d/\n", port, port);
+		if (!arg_dont_open)
+		{
+			g_print ("Launching browser: not yet implemented.\n");
+			/* TODO */
+		}
+	}
+	g_slist_free_full (l, free_uri_data);
 
 	g_main_loop_run(main_loop);
 

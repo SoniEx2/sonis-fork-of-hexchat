@@ -2,6 +2,9 @@
 option('gtk-frontend', type: 'boolean',
   description: 'Main graphical interface'
 )
+option('web-frontend', type: 'boolean',
+  description: 'Web interface'
+)
 option('text-frontend', type: 'boolean', value: false,
   description: 'Text interface (not generally useful)'
 )

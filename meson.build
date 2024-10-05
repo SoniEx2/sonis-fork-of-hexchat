@@ -47,8 +47,14 @@ config_h.set('G_DISABLE_SINGLE_INCLUDES', true)
 config_h.set('GTK_DISABLE_DEPRECATED', true)
 config_h.set('GTK_DISABLE_SINGLE_INCLUDES', true)
 config_h.set('GDK_PIXBUF_DISABLE_SINGLE_INCLUDES', true)
-config_h.set('GLIB_VERSION_MAX_ALLOWED', 'GLIB_VERSION_2_36')
-config_h.set('GLIB_VERSION_MIN_REQUIRED', 'GLIB_VERSION_2_36')
+# FIXME do this per-project somehow
+if get_option('web-frontend')
+  config_h.set('GLIB_VERSION_MAX_ALLOWED', 'GLIB_VERSION_2_66')
+  config_h.set('GLIB_VERSION_MIN_REQUIRED', 'GLIB_VERSION_2_36')
+else
+  config_h.set('GLIB_VERSION_MAX_ALLOWED', 'GLIB_VERSION_2_36')
+  config_h.set('GLIB_VERSION_MIN_REQUIRED', 'GLIB_VERSION_2_36')
+endif
 
 # Detected features
 config_h.set('HAVE_MEMRCHR', cc.has_function('memrchr'))
